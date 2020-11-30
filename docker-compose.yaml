@@ -1,0 +1,42 @@
+version: "3"
+
+services: 
+    flask_api:
+        build: ./flask_api
+        restart: unless-stopped
+        # expose:
+        #   - 5000  # For testing flask api locally. Remove once bugs are fixed.
+        depends_on: 
+            - redis
+            - rq_worker
+        links: 
+            - redis
+        ports:
+          - 5000:5000
+
+    rq_worker:
+        build: ./flask_api
+        command: rq worker --url redis://redis:6379 rq_worker
+        depends_on: 
+            - redis
+        links: 
+            - redis
+        restart: unless-stopped
+
+    redis:
+        image: redis:alpine
+        expose:
+            - 6379
+        restart: unless-stopped
+    nginx:
+        image: nginx:latest
+        volumes:
+          - "./nginx/conf.d/:/etc/nginx/conf.d/"
+        depends_on:
+          - flask_api
+        restart: unless-stopped
+        links:
+          - flask_api
+        ports:
+          - 80:80
+          - 443:443
