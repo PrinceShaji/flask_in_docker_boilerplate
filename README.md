@@ -233,6 +233,8 @@ server {
                 proxy_set_header   X-Forwarded-Proto $scheme;
                 proxy_set_header   X-Forwarded-For $remote_addr;
                 proxy_redirect     off;
+
+                resolver 127.0.0.11 ipv6=off;  # Using docker emedded dns resolver.
     
                 proxy_pass http://flask_api:5000$uri;
         }
@@ -265,6 +267,8 @@ server {
             proxy_set_header   X-Forwarded-For $remote_addr;
             proxy_redirect     off;
 
+            resolver 127.0.0.11 ipv6=off;  # Using docker emedded dns resolver.
+
             proxy_pass http://flask_api:5000$uri;
     }
 }
@@ -274,4 +278,59 @@ server {
 
 ## Bundle the project in docker-compose.
 Compose is a tool for defining and running multi-container Docker applications. With Compose, you use a YAML file to configure your application’s services. Then, with a single command, you create and start all the services from your configuration. From [compose docs](https://docs.docker.com/compose/).
+
+
+
+`./docker-compose.yaml`
+```yaml
+version: "3"
+
+services: 
+    flask_api:
+        build: ./flask_api
+        restart: unless-stopped
+        expose:
+          - 5000
+        depends_on: 
+            - redis
+            - rq_worker
+        links: 
+            - redis
+
+    rq_worker:
+        build: ./flask_api
+        command: rq worker --url redis://redis:6379 rq_worker
+        depends_on: 
+            - redis
+        links: 
+            - redis
+        restart: unless-stopped
+
+    redis:
+        image: redis:alpine
+        expose:
+            - 6379
+        restart: unless-stopped
+    nginx:
+        build: ./nginx
+        depends_on:
+          - flask_api
+        restart: unless-stopped
+        links:
+          - flask_api
+        ports:
+          - 80:80
+          - 443:443
+```
+This file instructs Docker to start the services, creates a default networks and forwards ports to the local system from the container.
+
+<br>
+
+### Starting the services.
+#### Development
+To run the services in development, use `docker-compose up --build --force-recreate`
+#### Production
+To run the services in production, use `docker-compose up -d --build --force-recreate`
+
+> `-d` flag runs the services in detached/background mode.
 
